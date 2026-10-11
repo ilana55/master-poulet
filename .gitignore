@@ -1,0 +1,16 @@
+# Dépendances (on les réinstalle avec npm install)
+node_modules/
+
+# Secrets : la clé Supabase reste en cuisine !
+.env
+.env.local
+
+# Fichiers générés
+dist/
+build/
+
+# Logs et fichiers système
+npm-debug.log*
+.DS_Store
+.vscode/
+   package-lock.json
