@@ -2,12 +2,16 @@
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-  console.error(" Il manque SUPABASE_URL ou SUPABASE_KEY dans le fichier .env");
-  process.exit(1);
-}
+const { SUPABASE_URL, SUPABASE_KEY } = process.env;
 
-export const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
+export const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_KEY);
+
+export const supabase = hasSupabaseConfig
+  ? createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+export function ensureSupabaseConfigured() {
+  if (!hasSupabaseConfig) {
+    throw new Error("SUPABASE_URL et SUPABASE_KEY sont requis pour utiliser l'API");
+  }
+}
