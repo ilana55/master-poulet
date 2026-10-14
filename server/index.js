@@ -2,17 +2,11 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { pathToFileURL } from "node:url";
 import "dotenv/config";
 import { supabase } from "./supabase.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-function readAdminKey(req) {
-  const value = req.headers["x-admin-key"];
-  return Array.isArray(value) ? value[0] : value;
-}
 
 const CATEGORIES = ["etudiant", "classique", "saint_ouen", "dessert"];
 
@@ -38,7 +32,7 @@ app.use(
 
 // Vérifie le mot de passe du gérant (en-tête x-admin-key) pour POST / PUT / DELETE
 function verifierGerant(req, res, next) {
-  if (readAdminKey(req) !== process.env.ADMIN_KEY) {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY) {
     return res.status(401).json({ erreur: "Accès réservé au gérant" });
   }
   next();
@@ -110,10 +104,6 @@ app.get("/", (req, res) => {
 
 // GET /plats : lister tous les plats → 200
 app.get("/plats", async (req, res) => {
-  if (!supabase) {
-    return res.status(500).json({ erreur: "Configuration Supabase manquante" });
-  }
-
   const { data, error } = await supabase
     .from("plats")
     .select("*")
@@ -128,10 +118,6 @@ app.get("/plats", async (req, res) => {
 
 // POST /plats : ajouter un plat → 201, ou 400 si un champ est vide / invalide
 app.post("/plats", verifierGerant, async (req, res) => {
-  if (!supabase) {
-    return res.status(500).json({ erreur: "Configuration Supabase manquante" });
-  }
-
   const erreurs = validerPlat(req.body, false);
   if (erreurs.length > 0) {
     return res.status(400).json({ erreurs });
@@ -152,10 +138,6 @@ app.post("/plats", verifierGerant, async (req, res) => {
 
 // PUT /plats/:id : modifier un plat → 200, ou 404 s'il n'existe pas
 app.put("/plats/:id", verifierGerant, async (req, res) => {
-  if (!supabase) {
-    return res.status(500).json({ erreur: "Configuration Supabase manquante" });
-  }
-
   if (!idValide(req.params.id)) {
     return res.status(400).json({ erreur: "id invalide" });
   }
@@ -188,10 +170,6 @@ app.put("/plats/:id", verifierGerant, async (req, res) => {
 
 // DELETE /plats/:id : supprimer un plat → 204 (pas de contenu), ou 404
 app.delete("/plats/:id", verifierGerant, async (req, res) => {
-  if (!supabase) {
-    return res.status(500).json({ erreur: "Configuration Supabase manquante" });
-  }
-
   if (!idValide(req.params.id)) {
     return res.status(400).json({ erreur: "id invalide" });
   }
@@ -212,15 +190,181 @@ app.delete("/plats/:id", verifierGerant, async (req, res) => {
   res.status(204).send();
 });
 
+// =====================================================
+//  Réduction étudiante + commandes
+// =====================================================
+
+// Anti brute-force : 5 essais de numéro étudiant max par IP toutes les 15 minutes.
+// Sans ça, un attaquant pourrait tester les 100 millions de numéros possibles.
+const limiteEtudiant = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  message: { erreur: "Trop d'essais de numéro étudiant, réessayez dans 15 minutes" },
+});
+
+// Renvoie true si le numéro existe dans la table etudiants
+async function estEtudiant(numero) {
+  // On vérifie d'abord le format (8 chiffres) avant d'interroger la base
+  if (typeof numero !== "string" || !/^\d{8}$/.test(numero)) {
+    return false;
+  }
+  const { data, error } = await supabase
+    .from("etudiants")
+    .select("numero")
+    .eq("numero", numero);
+
+  if (error) {
+    console.error(error);
+    return false;
+  }
+  return data.length > 0;
+}
+
+// Algorithme de Luhn : la "clé de contrôle" des numéros de carte bancaire.
+// Il détecte les fautes de frappe (un chiffre faux, deux chiffres inversés).
+function luhnValide(numero) {
+  let somme = 0;
+  let doubler = false;
+  for (let i = numero.length - 1; i >= 0; i--) {
+    let chiffre = Number(numero[i]);
+    if (doubler) {
+      chiffre = chiffre * 2;
+      if (chiffre > 9) chiffre = chiffre - 9;
+    }
+    somme = somme + chiffre;
+    doubler = !doubler;
+  }
+  return somme % 10 === 0;
+}
+
+// Vérifie la carte (fictive) : retourne la liste des erreurs
+function validerCarte(carte) {
+  const erreurs = [];
+  if (!carte) return ["Informations de paiement manquantes"];
+
+  const numero = String(carte.numero || "").replace(/\s/g, "");
+  if (!/^\d{16}$/.test(numero) || !luhnValide(numero)) {
+    erreurs.push("Numéro de carte invalide");
+  }
+
+  if (typeof carte.titulaire !== "string" || carte.titulaire.trim() === "") {
+    erreurs.push("Le nom du titulaire est obligatoire");
+  }
+
+  // Date d'expiration au format MM/AA, et pas dans le passé
+  const match = /^(\d{2})\/(\d{2})$/.exec(carte.expiration || "");
+  if (!match || Number(match[1]) < 1 || Number(match[1]) > 12) {
+    erreurs.push("Date d'expiration invalide (format MM/AA)");
+  } else {
+    const mois = Number(match[1]);
+    const annee = 2000 + Number(match[2]);
+    const maintenant = new Date();
+    const anneeActuelle = maintenant.getFullYear();
+    const moisActuel = maintenant.getMonth() + 1;
+    if (annee < anneeActuelle || (annee === anneeActuelle && mois < moisActuel)) {
+      erreurs.push("Carte expirée");
+    }
+  }
+
+  if (!/^\d{3}$/.test(carte.cvv || "")) {
+    erreurs.push("Le CVV doit contenir 3 chiffres");
+  }
+  return erreurs;
+}
+
+// POST /etudiants/verifier : le front demande si un numéro est valide
+app.post("/etudiants/verifier", limiteEtudiant, async (req, res) => {
+  const valide = await estEtudiant(req.body.numero);
+  if (!valide) {
+    return res.status(400).json({ erreur: "Numéro étudiant non reconnu" });
+  }
+  res.status(200).json({ valide: true });
+});
+
+// POST /commandes : valider le panier et payer (paiement SIMULÉ)
+app.post("/commandes", async (req, res) => {
+  const { articles, numeroEtudiant, carte } = req.body;
+
+  // 1) Le panier : une liste d'id de plats (pas de prix ! on ne fait pas confiance au client)
+  if (!Array.isArray(articles) || articles.length === 0) {
+    return res.status(400).json({ erreur: "Le panier est vide" });
+  }
+  if (articles.length > 30) {
+    return res.status(400).json({ erreur: "30 articles maximum par commande" });
+  }
+  if (!articles.every((id) => Number.isInteger(id) && id > 0)) {
+    return res.status(400).json({ erreur: "Panier invalide" });
+  }
+
+  // 2) La carte
+  const erreursCarte = validerCarte(carte);
+  if (erreursCarte.length > 0) {
+    return res.status(400).json({ erreurs: erreursCarte });
+  }
+
+  // 3) On relit les VRAIS prix dans la base
+  const { data: plats, error } = await supabase
+    .from("plats")
+    .select("id, nom, prix, categorie, dispo")
+    .in("id", articles);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ erreur: "Erreur serveur" });
+  }
+
+  const lignes = [];
+  for (const id of articles) {
+    const plat = plats.find((p) => p.id === id);
+    if (!plat) {
+      return res.status(400).json({ erreur: "Un plat du panier n'existe plus" });
+    }
+    if (!plat.dispo) {
+      return res.status(400).json({ erreur: plat.nom + " n'est plus disponible" });
+    }
+    lignes.push(plat);
+  }
+
+  // 4) Calcul du total + réduction étudiante vérifiée par le serveur
+  let total = lignes.reduce((somme, p) => somme + Number(p.prix), 0);
+  const contientMenuEtudiant = lignes.some((p) => p.categorie === "etudiant");
+  let reduction = false;
+
+  if (numeroEtudiant) {
+    if (!(await estEtudiant(numeroEtudiant))) {
+      return res.status(400).json({ erreur: "Numéro étudiant non reconnu" });
+    }
+    reduction = contientMenuEtudiant;
+  }
+  if (reduction) total = total * 0.9;
+  total = Math.round(total * 100) / 100;
+
+  // 5) On enregistre la commande, SANS le numéro de carte complet ni le CVV
+  const numeroCarte = carte.numero.replace(/\s/g, "");
+  const { data: commande, error: erreurInsert } = await supabase
+    .from("commandes")
+    .insert({
+      articles: lignes.map((p) => ({ nom: p.nom, prix: p.prix })),
+      total,
+      reduction,
+      titulaire: carte.titulaire.trim(),
+      carte_fin: numeroCarte.slice(-4),
+    })
+    .select("id, total, reduction")
+    .single();
+
+  if (erreurInsert) {
+    console.error(erreurInsert);
+    return res.status(500).json({ erreur: "Erreur serveur" });
+  }
+  res.status(201).json(commande);
+});
+
 // Toute autre route → 404
 app.use((req, res) => {
   res.status(404).json({ erreur: "Route inconnue" });
 });
 
-export { app };
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  app.listen(PORT, () => {
-    console.log(`🍗 API Mastère Poulet sur http://localhost:${PORT}`);
-  });
-}
+app.listen(PORT, () => {
+  console.log(`🍗 API Mastère Poulet sur http://localhost:${PORT}`);
+});
