@@ -361,6 +361,33 @@ select {
 }
 
 /* ===== Page gérant ===== */
+.connexion {
+  max-width: 380px;
+  margin: 40px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+  border-top: 6px solid var(--jaune);
+}
+
+.connexion h2 {
+  font-size: 2rem;
+}
+
+.connexion p {
+  margin: 0;
+}
+
+.barre-gerant {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-weight: 600;
+}
+
 .bloc {
   background: white;
   border-radius: 16px;

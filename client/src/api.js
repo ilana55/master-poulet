@@ -62,6 +62,15 @@ export async function passerCommande(articles, numeroEtudiant, carte) {
   return lireReponse(res);
 }
 
+// Le serveur vérifie le mot de passe du gérant : 200 si bon, 401 sinon
+export async function connexionGerant(cleGerant) {
+  const res = await fetch(`${API_URL}/gerant/connexion`, {
+    method: "POST",
+    headers: { "x-admin-key": cleGerant },
+  });
+  return lireReponse(res);
+}
+
 export async function supprimerPlat(id, cleGerant) {
   const res = await fetch(`${API_URL}/plats/${id}`, {
     method: "DELETE",

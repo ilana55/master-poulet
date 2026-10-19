@@ -106,6 +106,20 @@ app.get("/", (req, res) => {
   res.json({ message: "API Mastère Poulet 🍗 — essayez GET /plats" });
 });
 
+// Anti brute-force sur la connexion gérant : 5 essais max par IP toutes les 15 minutes
+const limiteConnexion = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  skipSuccessfulRequests: true, // seuls les mauvais mots de passe comptent
+  message: { erreur: "Trop d'essais de connexion, réessayez dans 15 minutes" },
+});
+
+// POST /gerant/connexion : vérifie le mot de passe du gérant → 200, sinon 401
+// Le mot de passe est vérifié par le serveur, jamais dans le navigateur.
+app.post("/gerant/connexion", limiteConnexion, verifierGerant, (req, res) => {
+  res.status(200).json({ connecte: true });
+});
+
 // GET /plats : lister tous les plats → 200
 app.get("/plats", async (req, res) => {
   const { data, error } = await supabase

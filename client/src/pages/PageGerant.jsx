@@ -4,6 +4,7 @@ import {
   ajouterPlat,
   modifierPlat,
   supprimerPlat,
+  connexionGerant,
   CATEGORIES,
 } from "../api.js";
 import CartePlat from "../components/CartePlat.jsx";
@@ -11,11 +12,15 @@ import CartePlat from "../components/CartePlat.jsx";
 const FORMULAIRE_VIDE = { nom: "", prix: "", categorie: "classique", image_url: "" };
 
 function PageGerant() {
+  // Connexion : le mot de passe est gardé en mémoire seulement (pas de localStorage).
+  // Si on recharge la page, il faut se reconnecter.
+  const [connecte, setConnecte] = useState(false);
+  const [motDePasse, setMotDePasse] = useState("");
+  const [cleGerant, setCleGerant] = useState("");
+  const [erreurConnexion, setErreurConnexion] = useState("");
+
   const [plats, setPlats] = useState([]);
   const [message, setMessage] = useState("");
-
-  // Le mot de passe gérant est gardé en mémoire seulement (pas de localStorage)
-  const [cleGerant, setCleGerant] = useState("");
 
   // useState du formulaire d'ajout : un seul objet pour tous les champs
   const [formulaire, setFormulaire] = useState(FORMULAIRE_VIDE);
@@ -26,9 +31,43 @@ function PageGerant() {
       .catch((err) => setMessage("❌ " + err.message));
   }
 
+  // On charge les plats seulement une fois connecté
   useEffect(() => {
-    chargerPlats();
-  }, []);
+    if (connecte) chargerPlats();
+  }, [connecte]);
+
+  // ---------- Connexion / déconnexion ----------
+
+  async function seConnecter(e) {
+    e.preventDefault();
+    setErreurConnexion("");
+    try {
+      await connexionGerant(motDePasse); // c'est le serveur qui vérifie
+      setCleGerant(motDePasse);
+      setConnecte(true);
+    } catch (err) {
+      setErreurConnexion(err.message);
+    }
+    setMotDePasse("");
+  }
+
+  function seDeconnecter() {
+    setConnecte(false);
+    setCleGerant("");
+    setPlats([]);
+    setMessage("");
+  }
+
+  // Si le serveur répond "Accès réservé au gérant", on renvoie vers la connexion
+  function gererErreur(err) {
+    if (err.message === "Accès réservé au gérant") {
+      seDeconnecter();
+    } else {
+      setMessage("❌ " + err.message);
+    }
+  }
+
+  // ---------- Actions sur les plats ----------
 
   // Un seul handler pour tous les champs grâce à l'attribut "name"
   function changerChamp(e) {
@@ -43,7 +82,7 @@ function PageGerant() {
       setFormulaire(FORMULAIRE_VIDE);
       chargerPlats();
     } catch (err) {
-      setMessage("❌ " + err.message);
+      gererErreur(err);
     }
   }
 
@@ -52,7 +91,7 @@ function PageGerant() {
       await modifierPlat(plat.id, { dispo: !plat.dispo }, cleGerant);
       chargerPlats();
     } catch (err) {
-      setMessage("❌ " + err.message);
+      gererErreur(err);
     }
   }
 
@@ -63,7 +102,7 @@ function PageGerant() {
       await modifierPlat(plat.id, { prix: nouveauPrix.replace(",", ".") }, cleGerant);
       chargerPlats();
     } catch (err) {
-      setMessage("❌ " + err.message);
+      gererErreur(err);
     }
   }
 
@@ -74,11 +113,37 @@ function PageGerant() {
       setMessage("🗑️ " + plat.nom + " supprimé");
       chargerPlats();
     } catch (err) {
-      setMessage("❌ " + err.message);
+      gererErreur(err);
     }
   }
 
-  // Petit tableau de bord (bonus)
+  // ---------- Écran de connexion ----------
+
+  if (!connecte) {
+    return (
+      <div className="page">
+        <form className="bloc connexion" onSubmit={seConnecter}>
+          <h2>🔑 Espace gérant</h2>
+          <p>Entrez le mot de passe pour gérer la carte.</p>
+          <input
+            type="password"
+            placeholder="Mot de passe"
+            value={motDePasse}
+            onChange={(e) => setMotDePasse(e.target.value)}
+            autoComplete="current-password"
+          />
+          {erreurConnexion && <p className="erreur">{erreurConnexion}</p>}
+          <button type="submit" className="bouton" disabled={motDePasse === ""}>
+            Se connecter
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // ---------- Espace gérant (une fois connecté) ----------
+
+  // Petit tableau de bord
   const nbDispo = plats.filter((p) => p.dispo).length;
   const prixMoyen =
     plats.length > 0
@@ -87,16 +152,11 @@ function PageGerant() {
 
   return (
     <div className="page">
-      <section className="bloc">
-        <label>
-          🔑 Mot de passe gérant :{" "}
-          <input
-            type="password"
-            value={cleGerant}
-            onChange={(e) => setCleGerant(e.target.value)}
-            placeholder="Demandé pour ajouter / modifier / supprimer"
-          />
-        </label>
+      <section className="bloc barre-gerant">
+        <span>✅ Connecté en tant que gérant</span>
+        <button className="bouton noir petit-bouton" onClick={seDeconnecter}>
+          Se déconnecter
+        </button>
       </section>
 
       <section className="stats">
