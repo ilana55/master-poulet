@@ -1,6 +1,6 @@
 // Toutes les communications avec NOTRE API Express sont ici.
 // Le front ne parle jamais à Supabase directement.
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL || "https://master-poulet.onrender.com";
 
 export const CATEGORIES = {
   etudiant: "🎓 Menu Étudiant",
