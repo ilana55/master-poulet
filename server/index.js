@@ -15,8 +15,12 @@ const CATEGORIES = ["etudiant", "classique", "saint_ouen", "dessert"];
 // Ajoute des en-têtes HTTP de sécurité (anti-clickjacking, anti-sniffing...)
 app.use(helmet());
 
-// Seul notre front a le droit d'appeler l'API depuis un navigateur
-app.use(cors({ origin: process.env.FRONT_URL || "http://localhost:5173" }));
+// Render passe par un proxy : on lui fait confiance pour connaître la vraie IP
+// du visiteur (sinon la limite de requêtes s'appliquerait à tout le monde d'un coup)
+app.set("trust proxy", 1);
+
+// Seuls notre site en ligne (Netlify) et notre site en local ont le droit d'appeler l'API
+app.use(cors({ origin: [process.env.FRONT_URL, "http://localhost:5173"] }));
 
 // Lit le JSON envoyé par le front (limité à 10 ko pour éviter les gros envois)
 app.use(express.json({ limit: "10kb" }));
