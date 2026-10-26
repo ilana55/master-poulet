@@ -1,5 +1,5 @@
-// Toutes les communications avec NOTRE API Express sont ici.
-// Le front ne parle jamais à Supabase directement.
+// communications avec NOTRE API Express sont ici.
+// Le front ne parle jamais à Supabase directement
 const API_URL = import.meta.env.VITE_API_URL || "https://master-poulet.onrender.com";
 
 export const CATEGORIES = {
@@ -11,9 +11,9 @@ export const CATEGORIES = {
 
 // Petite fonction qui lit la réponse et lance une erreur lisible si ça se passe mal
 async function lireReponse(res) {
-  if (res.status === 204) return null; // DELETE : pas de contenu
-  const json = await res.json();
-  if (!res.ok) {
+  if (res.status === 204) return null; // apres suppresion : pas de contenu
+    const json = await res.json();
+  if (!res.ok) { // si reponse est une erreur (400,401,404...)
     const message = json.erreurs ? json.erreurs.join(", ") : json.erreur;
     throw new Error(message || "Erreur " + res.status);
   }

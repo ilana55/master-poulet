@@ -1,7 +1,7 @@
 # Dépendances (on les réinstalle avec npm install)
 node_modules/
 
-# Secrets : la clé Supabase reste en cuisine !
+# Secrets
 .env
 .env.local
 

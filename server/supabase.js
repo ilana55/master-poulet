@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-  console.error("❌ Il manque SUPABASE_URL ou SUPABASE_KEY dans le fichier .env");
+  console.error("Il manque SUPABASE_URL ou SUPABASE_KEY dans le fichier .env");
   process.exit(1);
 }
 

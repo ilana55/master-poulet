@@ -2,7 +2,6 @@ import { useState } from "react";
 import PageClient from "./pages/PageClient.jsx";
 import PageGerant from "./pages/PageGerant.jsx";
 
-// Pas besoin de react-router pour 2 pages : un simple useState suffit
 function App() {
   const [page, setPage] = useState("client");
 

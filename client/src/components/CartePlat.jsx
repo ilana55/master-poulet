@@ -1,7 +1,6 @@
 import { CATEGORIES } from "../api.js";
 
-// Une carte = un plat. "children" permet d'ajouter des boutons différents
-// selon la page (bouton panier côté client, boutons gérant côté gérant).
+// Une carte = un plat
 function CartePlat({ plat, children }) {
   return (
     <div className={plat.dispo ? "carte" : "carte indispo"}>
@@ -9,7 +8,7 @@ function CartePlat({ plat, children }) {
         src={plat.image_url || "/logo.svg"}
         alt={plat.nom}
         className="carte-image"
-        onError={(e) => (e.target.src = "/logo.svg")} // image cassée → on met le logo
+        onError={(e) => (e.target.src = "/logo.svg")} 
       />
       {!plat.dispo && <span className="badge-indispo">Victime de son succès</span>}
       <div className="carte-contenu">

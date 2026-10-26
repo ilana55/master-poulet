@@ -1,22 +1,21 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
-import "dotenv/config";
-import { supabase } from "./supabase.js";
+import express from "express"; //creation framework pour créer API en Node.js
+import cors from "cors"; //choix de qui appelle l'API
+import helmet from "helmet"; //en-têtes de sécurité
+import rateLimit from "express-rate-limit"; //limiter requetes
+import "dotenv/config";//lecture .env
+import { supabase } from "./supabase.js"; //connexion à la base
 
-const app = express();
+const app = express(); //creation serveur dans app
 const PORT = process.env.PORT || 3000;
 
 const CATEGORIES = ["etudiant", "classique", "saint_ouen", "dessert"];
 
-// ---------- Middlewares ----------
+// Middlewares
 
 // Ajoute des en-têtes HTTP de sécurité (anti-clickjacking, anti-sniffing...)
 app.use(helmet());
 
-// Render passe par un proxy : on lui fait confiance pour connaître la vraie IP
-// du visiteur (sinon la limite de requêtes s'appliquerait à tout le monde d'un coup)
+// Render passe par un proxy : on lui fait confiance pour connaître la vraie IP du visiteur 
 app.set("trust proxy", 1);
 
 // Seuls notre site en ligne (Netlify) et notre site en local ont le droit d'appeler l'API
@@ -42,7 +41,7 @@ function verifierGerant(req, res, next) {
   next();
 }
 
-// Validation d'un plat. "partiel" = true pour le PUT (on peut ne modifier qu'un champ)
+// Validation d'un plat. "partiel" = true pour le PUT 
 function validerPlat(plat, partiel) {
   const erreurs = [];
 
@@ -100,7 +99,7 @@ function idValide(id) {
   return /^\d+$/.test(id);
 }
 
-// ---------- Routes ----------
+//Routes
 
 app.get("/", (req, res) => {
   res.json({ message: "API Mastère Poulet 🍗 — essayez GET /plats" });
@@ -115,7 +114,7 @@ const limiteConnexion = rateLimit({
 });
 
 // POST /gerant/connexion : vérifie le mot de passe du gérant → 200, sinon 401
-// Le mot de passe est vérifié par le serveur, jamais dans le navigateur.
+// Le mot de passe est vérifié par le serveur
 app.post("/gerant/connexion", limiteConnexion, verifierGerant, (req, res) => {
   res.status(200).json({ connecte: true });
 });
@@ -127,15 +126,17 @@ app.get("/plats", async (req, res) => {
     .select("*")
     .order("id", { ascending: true });
 
+  // si erreur avec la base, on affiche erreur dans le terminal
   if (error) {
     console.error(error);
     return res.status(500).json({ erreur: "Erreur serveur" });
   }
+
   res.status(200).json(data);
 });
 
 // POST /plats : ajouter un plat → 201, ou 400 si un champ est vide / invalide
-app.post("/plats", verifierGerant, async (req, res) => {
+app.post("/plats", verifierGerant, async (req, res) => {//verifierGerant fct avant route
   const erreurs = validerPlat(req.body, false);
   if (erreurs.length > 0) {
     return res.status(400).json({ erreurs });
@@ -208,12 +209,8 @@ app.delete("/plats/:id", verifierGerant, async (req, res) => {
   res.status(204).send();
 });
 
-// =====================================================
 //  Réduction étudiante + commandes
-// =====================================================
-
 // Anti brute-force : 5 essais de numéro étudiant max par IP toutes les 15 minutes.
-// Sans ça, un attaquant pourrait tester les 100 millions de numéros possibles.
 const limiteEtudiant = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -303,7 +300,7 @@ app.post("/etudiants/verifier", limiteEtudiant, async (req, res) => {
 app.post("/commandes", async (req, res) => {
   const { articles, numeroEtudiant, carte } = req.body;
 
-  // 1) Le panier : une liste d'id de plats (pas de prix ! on ne fait pas confiance au client)
+  // 1) Le panier : une liste d'id de plats 
   if (!Array.isArray(articles) || articles.length === 0) {
     return res.status(400).json({ erreur: "Le panier est vide" });
   }
@@ -314,7 +311,7 @@ app.post("/commandes", async (req, res) => {
     return res.status(400).json({ erreur: "Panier invalide" });
   }
 
-  // 2) La carte
+  // 2) La carte bancaire
   const erreursCarte = validerCarte(carte);
   if (erreursCarte.length > 0) {
     return res.status(400).json({ erreurs: erreursCarte });

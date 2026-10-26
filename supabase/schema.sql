@@ -1,9 +1,3 @@
--- =====================================================
---  Mastère Poulet — script Supabase COMPLET (un seul script)
---  Supabase → SQL Editor → New query → coller TOUT → Run
---  ⚠️ Le début efface les anciennes tables : on repart de zéro.
--- =====================================================
-
 -- 0) On supprime tout ce qui existait (si ça existe)
 drop table if exists commandes;
 drop table if exists etudiants;
@@ -11,17 +5,17 @@ drop table if exists plats;
 
 -- 1) Les plats (6 colonnes, dont 1 booléen : dispo)
 create table plats (
-  id         bigint generated always as identity primary key,
+  id         bigint generated always as identity primary key, 
   nom        text not null,
-  prix       numeric(5,2) not null check (prix >= 0),
-  categorie  text not null,          -- etudiant / classique / saint_ouen / dessert
+  prix       numeric(5,2) not null check (prix >= 0), -- type prix : 999,99
+  categorie  text not null,
   dispo      boolean not null default true,
   image_url  text
 );
 
 -- 2) Les cartes étudiantes reconnues (numéro à 8 chiffres)
 create table etudiants (
-  numero  text primary key check (numero ~ '^[0-9]{8}$'),
+  numero  text primary key check (numero ~ '^[0-9]{8}$'), --stocke en texte pour ne pas perdre les 00 devant
   nom     text not null
 );
 
@@ -29,7 +23,7 @@ create table etudiants (
 --    On ne stocke JAMAIS la carte complète ni le CVV : seulement les 4 derniers chiffres.
 create table commandes (
   id          bigint generated always as identity primary key,
-  created_at  timestamptz not null default now(),
+  created_at  timestamptz not null default now(), --fonction qui donne l'instant present
   articles    jsonb not null,
   total       numeric(6,2) not null check (total >= 0),
   reduction   boolean not null default false,
@@ -37,9 +31,8 @@ create table commandes (
   carte_fin   text not null check (carte_fin ~ '^[0-9]{4}$')
 );
 
--- 4) Sécurité : RLS activé SANS policy sur les 3 tables.
---    Avec la clé publique, personne ne peut lire ni écrire.
---    Seul notre serveur Express (clé secrète) y a accès.
+-- 4) Sécurité : RLS activé SANS policy (aucun acces) sur les 3 tables
+--    Avec la clé publique, personne ne peut lire ni écrire
 alter table plats enable row level security;
 alter table etudiants enable row level security;
 alter table commandes enable row level security;
